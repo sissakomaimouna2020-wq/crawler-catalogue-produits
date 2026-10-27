@@ -23,6 +23,7 @@ import argparse
 import csv
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, asdict
 from urllib.parse import urljoin
@@ -90,6 +91,11 @@ def fetch_page(url: str, session: requests.Session) -> str | None:
         try:
             response = session.get(url, headers=HEADERS, timeout=TIMEOUT_SECONDS)
             response.raise_for_status()
+
+            # Le site déclare l'UTF-8 dans son HTML mais pas toujours dans ses
+            # en-têtes HTTP : sans cette ligne, requests retombe sur Latin-1 et
+            # le symbole « £ » arrive sous la forme « Â£ ».
+            response.encoding = response.apparent_encoding or "utf-8"
             return response.text
 
         except requests.RequestException as exc:
@@ -112,12 +118,25 @@ def fetch_page(url: str, session: requests.Session) -> str | None:
 def parse_price(raw: str) -> float | None:
     """Convertit '£51.77' en 51.77.
 
-    Le prix est extrait en type numérique dès la collecte : une donnée
-    stockée en texte devient inexploitable pour toute analyse ultérieure.
+    La valeur numérique est extraite par expression régulière plutôt qu'en
+    retirant un symbole précis : le texte collecté peut contenir une devise
+    différente, une espace insécable ou un symbole mal décodé selon
+    l'encodage de la réponse. On isole donc les chiffres, ce qui reste
+    valable dans tous ces cas.
+
+    Le prix est converti en nombre dès la collecte : une donnée stockée en
+    texte devient inexploitable pour toute analyse ultérieure.
     """
+    if not raw:
+        return None
+
+    match = re.search(r"\d+(?:[.,]\d+)?", raw)
+    if not match:
+        return None
+
     try:
-        return float(raw.strip().lstrip("£"))
-    except (ValueError, AttributeError):
+        return float(match.group().replace(",", "."))
+    except ValueError:
         return None
 
 
