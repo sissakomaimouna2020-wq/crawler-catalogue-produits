@@ -1,46 +1,49 @@
----
-title: Mon Chatbot RAG
-emoji: 🤖
-colorFrom: blue
-colorTo: purple
-sdk: gradio
-sdk_version: 4.44.0
-app_file: app.py
-pinned: false
----
+# Crawler de catalogue produits
 
-# 🤖 Mini Chatbot RAG — Assistant IA Générative
+Collecte automatisée de fiches produits (titre, prix, note, disponibilité)
+sur un catalogue en ligne paginé, avec contrôle qualité des données collectées.
 
-Projet final réalisé dans le cadre du cours : Introduction aux IA Génératives.
+Site cible : books.toscrape.com, bac à sable public conçu pour l'apprentissage
+du scraping — la collecte y est explicitement autorisée.
 
-## Fonctionnalités
+## Ce que fait le script
 
-- 💬 Chatbot RAG avec recherche TF-IDF
-- 🧠 Génération de réponses avec FLAN-T5
-- 🔍 Exploration du corpus
-- 😊 Analyse de sentiment avec DistilBERT
-- ✍️ Génération libre GPT-2
-- ⚖️ Comparaison GPT-2 vs FLAN-T5
-- ➕ Ajout de document à la volée
-- 💾 Export de l'historique de conversation
+- Parcourt automatiquement la pagination en suivant le lien « next »
+- Extrait les fiches produits de chaque page (requests + BeautifulSoup)
+- Relance les requêtes échouées avec un délai croissant (1s, 2s, 4s)
+- Respecte un délai d'une seconde entre les requêtes
+- Contrôle la qualité des données et émet des alertes
+- Exporte en CSV et en JSON
 
-## Technologies utilisées
+## Contrôles qualité
 
-- Python
-- Gradio
-- Hugging Face Transformers
-- Scikit-learn / TF-IDF
+| Dimension | Contrôle |
+|---|---|
+| Taux de réussite | Part des pages récupérées sans erreur |
+| Complétude | Fiches sans titre, sans prix ou sans note |
+| Unicité | Doublons sur l'URL produit |
+| Validité | Prix nuls ou négatifs |
 
-## Déploiement
+Un champ soudainement vide sur de nombreuses fiches signale en général un
+changement de structure du site : c'est ce que le monitoring doit détecter
+avant que les données ne soient exploitées.
 
-Application déployée sur Hugging Face Spaces.
+## Installation
 
-## Structure
+pip install requests beautifulsoup4
 
-- `app.py` → interface Gradio
-- `rag.py` → moteur RAG
-- `corpus/` → base de connaissances (8 fichiers .txt)
+## Utilisation
 
-## Auteurs
+python scraper.py              # catalogue complet (50 pages, 1000 fiches)
+python scraper.py --pages 3    # les 3 premières pages
 
-Projet M2 — IA Générative
+## Choix techniques
+
+**Suivre le lien « next » plutôt que construire les URLs.** Si la pagination
+change, le crawler s'arrête proprement au lieu de produire des erreurs 404.
+
+**Convertir les types dès la collecte.** Un prix stocké en texte est
+inexploitable pour toute analyse ultérieure.
+
+**Séparer réseau, extraction et contrôle.** Chaque couche peut être testée
+isolément, et une évolution du site n'impacte que la couche d'extraction.
